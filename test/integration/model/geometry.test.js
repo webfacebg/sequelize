@@ -5,7 +5,9 @@
 var chai = require('chai')
   , expect = chai.expect
   , Support = require(__dirname + '/../support')
-  , DataTypes = require(__dirname + '/../../../lib/data-types');
+  , DataTypes = require(__dirname + '/../../../lib/data-types')
+  , dialect = Support.getTestDialect()
+  , semver = require('semver');
 
 var current = Support.sequelize;
 
@@ -13,13 +15,25 @@ describe(Support.getTestDialectTeaser('Model'), function() {
   if (current.dialect.supports.GEOMETRY) {
     describe('GEOMETRY', function() {
       beforeEach(function() {
-        return Support.prepareTransactionTest(this.sequelize).bind(this).then(function(sequelize) {
-          this.User = this.sequelize.define('User', {
-            username: DataTypes.STRING,
-            geometry: DataTypes.GEOMETRY
-          });
+        this.User = this.sequelize.define('User', {
+          username: DataTypes.STRING,
+          geometry: DataTypes.GEOMETRY
+        });
 
-          return this.User.sync({ force: true });
+        return this.User.sync({ force: true });
+      });
+
+      it('works with aliases fields', function () {
+        var Pub = this.sequelize.define('Pub', {
+          location: {field: 'coordinates', type: DataTypes.GEOMETRY}
+        })
+          , point = {type: 'Point', coordinates: [39.807222, -76.984722]};
+
+        return Pub.sync({ force: true }).then(function () {
+          return Pub.create({location: point});
+        }).then(function (pub) {
+          expect(pub).not.to.be.null;
+          expect(pub.location).to.be.deep.eql(point);
         });
       });
 
@@ -51,14 +65,12 @@ describe(Support.getTestDialectTeaser('Model'), function() {
 
     describe('GEOMETRY(POINT)', function() {
       beforeEach(function() {
-        return Support.prepareTransactionTest(this.sequelize).bind(this).then(function(sequelize) {
-          this.User = this.sequelize.define('User', {
-            username: DataTypes.STRING,
-            geometry: DataTypes.GEOMETRY('POINT')
-          });
-
-          return this.User.sync({ force: true });
+        this.User = this.sequelize.define('User', {
+          username: DataTypes.STRING,
+          geometry: DataTypes.GEOMETRY('POINT')
         });
+
+        return this.User.sync({ force: true });
       });
 
       it('should create a geometry object', function() {
@@ -89,14 +101,12 @@ describe(Support.getTestDialectTeaser('Model'), function() {
 
     describe('GEOMETRY(LINESTRING)', function() {
       beforeEach(function() {
-        return Support.prepareTransactionTest(this.sequelize).bind(this).then(function(sequelize) {
-          this.User = this.sequelize.define('User', {
-            username: DataTypes.STRING,
-            geometry: DataTypes.GEOMETRY('LINESTRING')
-          });
-
-          return this.User.sync({ force: true });
+        this.User = this.sequelize.define('User', {
+          username: DataTypes.STRING,
+          geometry: DataTypes.GEOMETRY('LINESTRING')
         });
+
+        return this.User.sync({ force: true });
       });
 
       it('should create a geometry object', function() {
@@ -127,14 +137,12 @@ describe(Support.getTestDialectTeaser('Model'), function() {
 
     describe('GEOMETRY(POLYGON)', function() {
       beforeEach(function() {
-        return Support.prepareTransactionTest(this.sequelize).bind(this).then(function(sequelize) {
-          this.User = this.sequelize.define('User', {
-            username: DataTypes.STRING,
-            geometry: DataTypes.GEOMETRY('POLYGON')
-          });
-
-          return this.User.sync({ force: true });
+        this.User = this.sequelize.define('User', {
+          username: DataTypes.STRING,
+          geometry: DataTypes.GEOMETRY('POLYGON')
         });
+
+        return this.User.sync({ force: true });
       });
 
       it('should create a geometry object', function() {
@@ -168,6 +176,45 @@ describe(Support.getTestDialectTeaser('Model'), function() {
           return User.findOne({where: {username: props.username}});
         }).then(function(user) {
           expect(user.geometry).to.be.deep.eql(polygon2);
+        });
+      });
+    });
+
+    describe('sql injection attacks', function () {
+      beforeEach(function() {
+        this.Model = this.sequelize.define('Model', {
+          location: DataTypes.GEOMETRY
+        });
+        return this.sequelize.sync({ force: true });
+      });
+
+      it('should properly escape the single quotes', function () {
+        return this.Model.create({
+          location: {
+            type: 'Point',
+            properties: {
+              exploit: "'); DELETE YOLO INJECTIONS; -- "
+            },
+            coordinates: [39.807222, -76.984722]
+          }
+        });
+      });
+
+      it('should properly escape the single quotes in coordinates', function () {
+
+        // MySQL 5.7, those guys finally fixed this
+        if (dialect === 'mysql' && semver.gte(this.sequelize.options.databaseVersion, '5.7.0')) {
+          return;
+        }
+
+        return this.Model.create({
+          location: {
+            type: 'Point',
+            properties: {
+              exploit: "'); DELETE YOLO INJECTIONS; -- "
+            },
+            coordinates: [39.807222, "'); DELETE YOLO INJECTIONS; --"]
+          }
         });
       });
     });

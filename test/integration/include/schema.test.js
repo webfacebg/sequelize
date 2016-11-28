@@ -15,7 +15,6 @@ var sortById = function(a, b) {
 
 describe(Support.getTestDialectTeaser('Includes with schemas'), function() {
   describe('findAll', function() {
-    this.timeout(30000);
     beforeEach(function() {
       var self = this;
       this.fixtureA = function() {
@@ -1212,7 +1211,6 @@ describe(Support.getTestDialectTeaser('Includes with schemas'), function() {
   });
 
   describe('findOne', function() {
-    ([ true, false ]).forEach(function (useNewReferencesStyle) {
     it('should work with schemas', function() {
       var self = this;
       var UserModel = this.sequelize.define('User', {
@@ -1235,10 +1233,7 @@ describe(Support.getTestDialectTeaser('Includes with schemas'), function() {
         timestamps: false
       });
 
-      var UserIdColumn = useNewReferencesStyle
-        ? { type: Sequelize.INTEGER, references: UserModel, referencesKey: 'Id' }
-        : { type: Sequelize.INTEGER, references: { model: UserModel, key: 'Id' } }
-        ;
+      var UserIdColumn = { type: Sequelize.INTEGER, references: { model: UserModel, key: 'Id' } };
 
       var ResumeModel = this.sequelize.define('Resume', {
         Id: {
@@ -1284,7 +1279,6 @@ describe(Support.getTestDialectTeaser('Includes with schemas'), function() {
           });
         });
       });
-    });
     });
   });
 });

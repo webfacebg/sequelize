@@ -12,6 +12,13 @@ var chai = require('chai')
   , current = Support.sequelize;
 
 describe(Support.getTestDialectTeaser('Instance'), function() {
+  before(function () {
+    this.clock = sinon.useFakeTimers();
+  });
+  after(function () {
+    this.clock.restore();
+  });
+
   describe('update', function() {
     beforeEach(function () {
       this.User = this.sequelize.define('User', {
@@ -133,6 +140,37 @@ describe(Support.getTestDialectTeaser('Instance'), function() {
         });
       });
     });
+
+    if(dialect === 'mysql') {
+      it('should update timestamps w milliseconds', function() {
+        var User = this.sequelize.define('User' + config.rand(), {
+          name: DataTypes.STRING,
+          bio: DataTypes.TEXT,
+          email: DataTypes.STRING,
+          createdAt: {type: DataTypes.DATE(6), allowNull: false},
+          updatedAt: {type: DataTypes.DATE(6), allowNull: false}
+        }, {
+          timestamps: true
+        });
+
+      this.clock.tick(2100); //move the clock forward 2100 ms. 
+
+      return User.sync({force: true}).then(function() {
+          return User.create({
+            name: 'snafu',
+            email: 'email'
+          }).then(function(user) {
+            return user.reload();
+          }).then(function(user) {
+            expect(user.get('name')).to.equal('snafu');
+            expect(user.get('email')).to.equal('email');
+            var testDate = new Date();
+            testDate.setTime(2100);
+            expect(user.get('createdAt')).to.equalTime(testDate);
+          });
+        });
+      });
+    }
 
     it('should only save passed attributes', function () {
       var user = this.User.build();
@@ -347,26 +385,25 @@ describe(Support.getTestDialectTeaser('Instance'), function() {
         identifier: {type: DataTypes.STRING, primaryKey: true}
       });
 
-      return User.sync({ force: true }).then(function() {
+      return User.sync({ force: true }).bind(this).then(function() {
         return User.create({
           name: 'snafu',
           identifier: 'identifier'
-        }).then(function(user) {
-          var oldCreatedAt = user.createdAt
-            , oldUpdatedAt = user.updatedAt
-            , oldIdentifier = user.identifier;
+        });
+      }).then(function(user) {
+        var oldCreatedAt = user.createdAt
+          , oldUpdatedAt = user.updatedAt
+          , oldIdentifier = user.identifier;
 
-          return this.sequelize.Promise.delay(1000).then(function() {
-            return user.update({
-              name: 'foobar',
-              createdAt: new Date(2000, 1, 1),
-              identifier: 'another identifier'
-            }).then(function(user) {
-              expect(new Date(user.createdAt)).to.equalDate(new Date(oldCreatedAt));
-              expect(new Date(user.updatedAt)).to.not.equalTime(new Date(oldUpdatedAt));
-              expect(user.identifier).to.equal(oldIdentifier);
-            });
-          });
+        this.clock.tick(1000);
+        return user.update({
+          name: 'foobar',
+          createdAt: new Date(2000, 1, 1),
+          identifier: 'another identifier'
+        }).then(function(user) {
+          expect(new Date(user.createdAt)).to.equalDate(new Date(oldCreatedAt));
+          expect(new Date(user.updatedAt)).to.not.equalTime(new Date(oldUpdatedAt));
+          expect(user.identifier).to.equal(oldIdentifier);
         });
       });
     });

@@ -14,26 +14,6 @@ describe(Support.getTestDialectTeaser('Hooks'), function() {
     this.Model = current.define('m');
   });
 
-  describe('callback', function () {
-    // Legacy - remove at some point
-
-    it('success', function () {
-      this.Model.beforeCreate(function (attributes, options, fn) {
-        fn();
-      });
-
-      return expect(this.Model.runHooks('beforeCreate', {}, {})).to.be.resolved;
-    });
-
-    it('error', function () {
-      this.Model.beforeCreate(function (attributes, options, fn) {
-        fn('No!');
-      });
-
-      return expect(this.Model.runHooks('beforeCreate', {}, {})).to.be.rejectedWith('No!');
-    });
-  });
-
   describe('arguments', function () {
     it('hooks can modify passed arguments', function () {
       this.Model.addHook('beforeCreate', function (options) {
@@ -116,7 +96,7 @@ describe(Support.getTestDialectTeaser('Hooks'), function() {
       this.Model.beforeCreate(function () {
         this.hook1();
 
-        return Promise.reject('No!');
+        return Promise.reject(new Error('No!'));
       }.bind(this));
       this.Model.beforeCreate(this.hook2);
 

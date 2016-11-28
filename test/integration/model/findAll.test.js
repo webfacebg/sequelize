@@ -737,7 +737,7 @@ describe(Support.getTestDialectTeaser('Model'), function() {
           var self = this;
           return this.User.findAll({ where: { username: 'barfooz'}}).then(function(users) {
             users.forEach(function(user) {
-              expect(user).to.be.instanceOf(self.User.Instance);
+              expect(user).to.be.instanceOf(self.User);
             });
           });
         });
@@ -746,7 +746,7 @@ describe(Support.getTestDialectTeaser('Model'), function() {
           var self = this;
           return this.User.findAll({ where: { username: 'barfooz'}, raw: false }).then(function(users) {
             users.forEach(function(user) {
-              expect(user).to.be.instanceOf(self.User.Instance);
+              expect(user).to.be.instanceOf(self.User);
             });
           });
         });
@@ -755,7 +755,7 @@ describe(Support.getTestDialectTeaser('Model'), function() {
           var self = this;
           return this.User.findAll({ where: { username: 'barfooz'}, raw: true }).then(function(users) {
             users.forEach(function(user) {
-              expect(user).to.not.be.instanceOf(self.User.Instance);
+              expect(user).to.not.be.instanceOf(self.User);
               expect(users[0]).to.be.instanceOf(Object);
             });
           });
@@ -858,6 +858,98 @@ describe(Support.getTestDialectTeaser('Model'), function() {
             expect(continents[0].countries[0].continent).not.to.exist;
           });
         });
+      });
+
+      describe('properly handles attributes:[] cases', function () {
+
+        beforeEach(function () {
+          this.Animal = this.sequelize.define('Animal', {
+            name: Sequelize.STRING,
+            age: Sequelize.INTEGER
+          });
+          this.Kingdom = this.sequelize.define('Kingdom', {
+            name: Sequelize.STRING
+          });
+          this.AnimalKingdom = this.sequelize.define('AnimalKingdom', {
+            relation: Sequelize.STRING,
+            mutation: Sequelize.BOOLEAN
+          });
+
+          this.Kingdom.belongsToMany(this.Animal, { through: this.AnimalKingdom });
+
+          return this.sequelize.sync({ force: true })
+            .then(() => Sequelize.Promise.all([
+              this.Animal.create({ name: 'Dog', age: 20 }),
+              this.Animal.create({ name: 'Cat', age: 30 }),
+              this.Animal.create({ name: 'Peacock', age: 25 }),
+              this.Animal.create({ name: 'Fish', age: 100 })
+            ]))
+            .spread((a1, a2, a3, a4) => Sequelize.Promise.all([
+                this.Kingdom.create({ name: 'Earth' }),
+                this.Kingdom.create({ name: 'Water' }),
+                this.Kingdom.create({ name: 'Wind' })
+              ]).spread((k1, k2, k3) => (
+                Sequelize.Promise.all([
+                  k1.addAnimals([a1, a2]),
+                  k2.addAnimals([a4]),
+                  k3.addAnimals([a3])
+                ])
+            )));
+        });
+
+        it('N:M with ignoring include.attributes only', function () {
+          return this.Kingdom.findAll({
+            include:[{
+              model: this.Animal,
+              where: { age: { $gte : 29 } },
+              attributes: []
+            }]
+          }).then((kingdoms) => {
+            expect(kingdoms.length).to.be.eql(2);
+            kingdoms.forEach((kingdom) => {
+              // include.attributes:[] , model doesn't exists
+              expect(kingdom.Animals).to.not.exist;
+            });
+          });
+        });
+
+        it('N:M with ignoring through.attributes only', function () {
+          return this.Kingdom.findAll({
+            include:[{
+              model: this.Animal,
+              where: { age: { $gte : 29 } },
+              through: {
+                attributes: []
+              }
+            }]
+          }).then((kingdoms) => {
+            expect(kingdoms.length).to.be.eql(2);
+            kingdoms.forEach((kingdom) => {
+              expect(kingdom.Animals).to.exist; // include model exists
+              expect(kingdom.Animals[0].AnimalKingdom).to.not.exist; // through doesn't exists
+            });
+          });
+        });
+
+        it('N:M with ignoring include.attributes but having through.attributes', function () {
+          return this.Kingdom.findAll({
+            include:[{
+              model: this.Animal,
+              where: { age: { $gte : 29 } },
+              attributes: [],
+              through: {
+                attributes: ['mutation']
+              }
+            }]
+          }).then((kingdoms) => {
+            expect(kingdoms.length).to.be.eql(2);
+            kingdoms.forEach((kingdom) => {
+              // include.attributes: [], model doesn't exists
+              expect(kingdom.Animals).to.not.exist;
+            });
+          });
+        });
+
       });
     });
 
@@ -1110,13 +1202,6 @@ describe(Support.getTestDialectTeaser('Model'), function() {
         });
       });
 
-      it('does not modify the passed arguments', function() {
-        var options = { where: ['username = ?', 'awesome']};
-        return this.User.findAll(options).then(function() {
-          expect(options).to.deep.equal({ where: ['username = ?', 'awesome']});
-        });
-      });
-
       it('can also handle array notation', function() {
         var self = this;
         return this.User.findAll({where: ['id = ?', this.users[1].id]}).then(function(users) {
@@ -1165,7 +1250,7 @@ describe(Support.getTestDialectTeaser('Model'), function() {
 
         return User.sync({ force: true }).then(function() {
           return User.create({Login: 'foo'}).then(function() {
-            return User.findAll({ID: 1}).then(function(user) {
+            return User.findAll({ where: { ID: 1 } }).then(function(user) {
               expect(user).to.be.instanceof(Array);
               expect(user).to.have.length(1);
             });
@@ -1313,13 +1398,16 @@ describe(Support.getTestDialectTeaser('Model'), function() {
                     var criteria = {
                       offset: 5,
                       limit: 1,
+                      where: {
+                        name: 'Some election'
+                      },
                       include: [
                         Citizen, // Election creator
                         { model: Citizen, as: 'Voters' } // Election voters
                       ]
                     };
                     return Election.findAndCountAll(criteria).then(function(elections) {
-                      expect(elections.count).to.equal(2);
+                      expect(elections.count).to.equal(1);
                       expect(elections.rows.length).to.equal(0);
                     });
                   });
@@ -1389,4 +1477,61 @@ describe(Support.getTestDialectTeaser('Model'), function() {
       expect(spy.called).to.be.ok;
     });
   });
+
+  describe('rejectOnEmpty mode', function() {
+    it('works from model options', function() {
+      var Model = current.define('Test', {
+        username: Sequelize.STRING(100)
+      },{
+        rejectOnEmpty: true
+      });
+
+      return Model.sync({ force: true })
+        .then(function() {
+          return expect(Model.findAll({
+            where: {
+              username: 'some-username-that-is-not-used-anywhere'
+            }
+          })).to.eventually.be.rejectedWith(Sequelize.EmptyResultError);
+        });
+    });
+
+    it('throws custom error with initialized', function() {
+
+      var Model = current.define('Test', {
+        username: Sequelize.STRING(100)
+      },{
+        rejectOnEmpty: new Sequelize.ConnectionError('Some Error') //using custom error instance
+      });
+
+      return Model.sync({ force: true })
+        .then(function() {
+          return expect(Model.findAll({
+            where: {
+              username: 'some-username-that-is-not-used-anywhere-for-sure-this-time'
+            }
+          })).to.eventually.be.rejectedWith(Sequelize.ConnectionError);
+        });
+    });
+
+    it('throws custom error with instance', function() {
+
+      var Model = current.define('Test', {
+        username: Sequelize.STRING(100)
+      },{
+        rejectOnEmpty: Sequelize.ConnectionError //using custom error instance
+      });
+
+      return Model.sync({ force: true })
+        .then(function() {
+          return expect(Model.findAll({
+            where: {
+              username: 'some-username-that-is-not-used-anywhere-for-sure-this-time'
+            }
+          })).to.eventually.be.rejectedWith(Sequelize.ConnectionError);
+        });
+    });
+
+  });
+
 });

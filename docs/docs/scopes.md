@@ -60,6 +60,17 @@ Project.scope('deleted').findAll(); // Removes the default scope
 SELECT * FROM projects WHERE deleted = true
 ```
 
+It is also possible to include scoped models in a scope definition. This allows you to avoid duplicating `include`, `attributes` or `where` definitions.
+Using the above example, and invoking the `active` scope on the included User model (rather than specifying the condition directly in that include object):
+
+```js
+activeUsers: {
+  include: [
+    { model: User.scope('active')}
+  ]
+}
+```
+
 # Usage
 Scopes are applied by calling `.scope` on the model definition, passing the name of one or more scopes. `.scope` returns a fully functional model instance with all the regular methods: `.findAll`, `.update`, `.count`, `.destroy` etc. You can save this model instance and reuse it later:
 
@@ -85,7 +96,7 @@ SELECT * FROM projects WHERE someNumber = 42 AND accessLevel >= 19
 ```
 
 ## Merging
-Several scopes can be applied simultaneously by passing an array of scopes to `.scope`, or by passing the scopes as consequtive arguments.
+Several scopes can be applied simultaneously by passing an array of scopes to `.scope`, or by passing the scopes as consecutive arguments.
 
 ```js
 // These two are equivalent
@@ -137,7 +148,7 @@ Calling `.scope('scope1', 'scope2')` will yield the following query
 WHERE firstName = 'bob' AND age > 30 LIMIT 10
 ```
 
-Note how `limit` and `age` are overwritten by `scope2`, whíle `firstName` is preserved. `limit`, `offset`, `order`, `paranoid`, `lock` and `raw` are overwritten, while `where` and `include` are shallowly merged. This means that identical keys in the where objects, and subsequent includes of the same model will both overwrite each other.
+Note how `limit` and `age` are overwritten by `scope2`, while `firstName` is preserved. `limit`, `offset`, `order`, `paranoid`, `lock` and `raw` are overwritten, while `where` and `include` are shallowly merged. This means that identical keys in the where objects, and subsequent includes of the same model will both overwrite each other.
 
 The same merge logic applies when passing a find object directly to findAll on a scoped model:
 
@@ -157,8 +168,8 @@ Here the `deleted` scope is merged with the finder. If we were to pass `where: {
 # Associations
 Sequelize has two different but related scope concepts in relation to associations. The difference is subtle but important:
 
-* **Assocation scopes** Allow you to specify default attributes when getting and setting associations - useful when implementing polymorphic associations. This scope is only invoked on the association between the two models, when using the `get`, `set`, `add` and `create` associated model functions
-* **Scopes on associated models** Allows you to apply default and other scopes when fetching associations, and allows you to pass a scoped model when creating associtaions. These scopes both apply to regular finds on the model and to find through the association.
+* **Association scopes** Allow you to specify default attributes when getting and setting associations - useful when implementing polymorphic associations. This scope is only invoked on the association between the two models, when using the `get`, `set`, `add` and `create` associated model functions
+* **Scopes on associated models** Allows you to apply default and other scopes when fetching associations, and allows you to pass a scoped model when creating associations. These scopes both apply to regular finds on the model and to find through the association.
 
 As an example, consider the models Post and Comment. Comment is associated to several other models (Image, Video etc.) and the association between Comment and other models is polymorphic, which means that Comment stores a `commentable` column, in addition to the foreign key `commentable_id`.
 

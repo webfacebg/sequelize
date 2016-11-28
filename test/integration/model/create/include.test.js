@@ -13,10 +13,22 @@ describe(Support.getTestDialectTeaser('Model'), function() {
       it('should create data for BelongsTo relations', function() {
         var Product = this.sequelize.define('Product', {
           title: Sequelize.STRING
+        }, {
+          hooks: {
+            afterCreate: function (product) {
+              product.isIncludeCreatedOnAfterCreate = !!(product.User && product.User.id);
+            }
+          }
         });
         var User = this.sequelize.define('User', {
           first_name: Sequelize.STRING,
           last_name: Sequelize.STRING
+        }, {
+          hooks: {
+            beforeCreate: function (user, options) {
+              user.createOptions = options;
+            }
+          }
         });
 
         Product.belongsTo(User);
@@ -29,8 +41,14 @@ describe(Support.getTestDialectTeaser('Model'), function() {
               last_name: 'Broadstone'
             }
           }, {
-            include: [ User ]
+            include: [{
+              model: User,
+              myOption: 'option'
+            }]
           }).then(function(savedProduct) {
+            expect(savedProduct.isIncludeCreatedOnAfterCreate).to.be.true;
+            expect(savedProduct.User.createOptions.myOption).to.be.equal('option');
+            expect(savedProduct.User.createOptions.parentRecord).to.be.equal(savedProduct);
             return Product.findOne({
               where: { id: savedProduct.id },
               include: [ User ]
@@ -79,9 +97,24 @@ describe(Support.getTestDialectTeaser('Model'), function() {
       it('should create data for HasMany relations', function() {
         var Product = this.sequelize.define('Product', {
           title: Sequelize.STRING
+        }, {
+          hooks: {
+            afterCreate: function (product) {
+              product.areIncludesCreatedOnAfterCreate = product.Tags &&
+                product.Tags.every(function (tag) {
+                  return !!tag.id;
+                });
+            }
+          }
         });
         var Tag = this.sequelize.define('Tag', {
           name: Sequelize.STRING
+        }, {
+          hooks: {
+            afterCreate: function (tag, options) {
+              tag.createOptions = options;
+            }
+          }
         });
 
         Product.hasMany(Tag);
@@ -95,8 +128,16 @@ describe(Support.getTestDialectTeaser('Model'), function() {
               {id: 2, name: 'Beta'}
             ]
           }, {
-            include: [ Tag ]
+            include: [{
+              model: Tag,
+              myOption: 'option'
+            }]
           }).then(function(savedProduct) {
+            expect(savedProduct.areIncludesCreatedOnAfterCreate).to.be.true;
+            expect(savedProduct.Tags[0].createOptions.myOption).to.be.equal('option');
+            expect(savedProduct.Tags[0].createOptions.parentRecord).to.be.equal(savedProduct);
+            expect(savedProduct.Tags[1].createOptions.myOption).to.be.equal('option');
+            expect(savedProduct.Tags[1].createOptions.parentRecord).to.be.equal(savedProduct);
             return Product.find({
               where: { id: savedProduct.id },
               include: [ Tag ]
@@ -204,11 +245,26 @@ describe(Support.getTestDialectTeaser('Model'), function() {
       it('should create data for BelongsToMany relations', function() {
         var User = this.sequelize.define('User', {
           username: DataTypes.STRING
+        },{
+          hooks: {
+            afterCreate: function (user) {
+              user.areIncludesCreatedOnAfterCreate = user.Tasks &&
+                user.Tasks.every(function (task) {
+                  return !!task.id;
+                });
+            }
+          }
         });
 
         var Task = this.sequelize.define('Task', {
           title: DataTypes.STRING,
           active: DataTypes.BOOLEAN
+        }, {
+          hooks: {
+            afterCreate: function (task, options) {
+              task.createOptions = options;
+            }
+          }
         });
 
         User.belongsToMany(Task, {through: 'user_task'});
@@ -222,8 +278,16 @@ describe(Support.getTestDialectTeaser('Model'), function() {
               { title: 'Die trying', active: false }
             ]
           }, {
-            include: [ Task ]
+            include: [{
+              model: Task,
+              myOption: 'option'
+            }]
           }).then(function(savedUser) {
+            expect(savedUser.areIncludesCreatedOnAfterCreate).to.be.true;
+            expect(savedUser.Tasks[0].createOptions.myOption).to.be.equal('option');
+            expect(savedUser.Tasks[0].createOptions.parentRecord).to.be.equal(savedUser);
+            expect(savedUser.Tasks[1].createOptions.myOption).to.be.equal('option');
+            expect(savedUser.Tasks[1].createOptions.parentRecord).to.be.equal(savedUser);
             return User.find({
               where: { id: savedUser.id },
               include: [ Task ]
